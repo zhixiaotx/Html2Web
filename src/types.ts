@@ -33,6 +33,7 @@ export interface CloudflareConfigExport {
   schemaSql: string;
   wranglerJson: string;
   workerCode: string;
+  pagesFunctionCode?: string;
 }
 
 export type ThemeMode = 'dark' | 'light' | 'high-contrast';

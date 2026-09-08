@@ -9,7 +9,7 @@ interface CloudflareModalProps {
 
 export const CloudflareModal: React.FC<CloudflareModalProps> = ({ isOpen, onClose }) => {
   const [data, setData] = useState<CloudflareConfigExport | null>(null);
-  const [activeTab, setActiveTab] = useState<'schema' | 'wrangler' | 'worker'>('schema');
+  const [activeTab, setActiveTab] = useState<'pages' | 'schema' | 'wrangler' | 'worker'>('pages');
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -31,6 +31,27 @@ export const CloudflareModal: React.FC<CloudflareModalProps> = ({ isOpen, onClos
   const getActiveCode = () => {
     if (!data) return '';
     switch (activeTab) {
+      case 'pages':
+        return `// ==========================================
+// Cloudflare Pages + KV 数据库绑定指南
+// ==========================================
+// 1. 登录 Cloudflare 控制台 -> Workers & Pages -> 创建 KV 命名空间:
+//    名称推荐: HTMLSHARE_KV 或 KV_SNIPPETS
+//
+// 2. 进入你的 Pages 项目 -> Settings -> Functions -> KV namespace bindings (KV 命名空间绑定):
+//    - Variable name (变量名称): 必须填 KV_SNIPPETS (或 HTMLSHARE_KV)
+//    - KV namespace: 选择你在第1步中创建的命名空间
+//
+// 3. (可选) 如果同时绑定了 D1 数据库:
+//    - Variable name (变量名称): 填 DB
+//    - D1 database: 选择你的 D1 数据库实例并执行 schema.sql
+//
+// 4. 代码库根目录下已预置 functions/ 文件夹 (包含 api 与 raw 路由):
+//    Cloudflare Pages 会自动识别并将其转换为毫秒级的 Serverless Functions！
+//    点击保存/发布片段即可无缝写入绑定的 KV / D1 数据库！
+//
+// 下方是 functions/api/[[route]].ts 的完整实现源码:
+` + (data.pagesFunctionCode || '');
       case 'schema':
         return data.schemaSql;
       case 'wrangler':
@@ -84,6 +105,18 @@ export const CloudflareModal: React.FC<CloudflareModalProps> = ({ isOpen, onClos
           {/* Sub Tabs */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+              <button
+                onClick={() => setActiveTab('pages')}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer ${
+                  activeTab === 'pages'
+                    ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Cloud className="w-3.5 h-3.5" />
+                <span>Pages Functions (KV/D1)</span>
+              </button>
+
               <button
                 onClick={() => setActiveTab('schema')}
                 className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer ${

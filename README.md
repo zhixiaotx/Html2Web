@@ -448,9 +448,11 @@ git push origin main
 
 ---
 
-### 方案二：Cloudflare Pages 前端部署（https://dash.cloudflare.com/ 网页控制台）
+### 方案二：Cloudflare Pages 前端与 Serverless 一体化部署（纯前端 / 直连 KV 数据库）
 
 Cloudflare Pages 依托于覆盖全球 300+ 城市的 Anycast 边缘网络，拥有极高的访问速度和**完全不限流量、不限请求次数**的永久免费特权。
+
+本项目已在根目录内置了 **`functions/`** 目录（包含 `functions/api/[[route]].ts` 与 `functions/raw/[slug].ts`），Cloudflare Pages 构建时会自动将其编译为全托管的 Serverless 接口，支持直接绑定 KV 数据库持久化保存代码片段与短链！
 
 #### 1. 方式 A：在 https://dash.cloudflare.com/ 连接 GitHub 仓库自动部署（最推荐）
 
@@ -466,11 +468,28 @@ Cloudflare Pages 依托于覆盖全球 300+ 城市的 Anycast 边缘网络，拥
    - **Build command（构建命令）**：填入 `npx vite build`；
    - **Build output directory（构建输出目录）**：填入 `dist`；
    - **Root directory（根目录）**：留空即可；
-5. **保存并部署**：
-   - 点击底部的 **Save and Deploy** 按钮；
-   - Cloudflare 会自动拉取代码构建，约 30~60 秒即可部署成功，自动生成 `https://<项目名>.pages.dev` 免费全球访问域名！
+5. **保存并部署**：点击底部的 **Save and Deploy** 按钮。
 
-#### 2. 方式 B：在 https://dash.cloudflare.com/ 网页端直接拖拽 Direct Upload 部署（零 Git 仓库要求）
+#### 2. 核心：在 Pages 项目中绑定 KV 数据库（解决保存时 JSON.parse 错误的关键 ⚠️）
+
+> 💡 **为什么会报错 `JSON.parse: unexpected end of data`？**  
+> 因为当 Pages 只有纯静态产物而未绑定 Functions KV 时，前端请求 `/api/snippets` 会被静态路由重定向到 `index.html`（HTML 文本），前端执行 `res.json()` 无法解析 HTML 进而抛出此错误。  
+> **只需在 Pages 中完成以下绑定，即可立刻解决并让代码保存功能全自动工作：**
+
+1. **创建 KV 命名空间**：
+   - 在 Cloudflare 控制台左侧菜单点击 **Storage & Databases** -> **KV**；
+   - 点击 **Create namespace**，输入名称 `KV_SNIPPETS`（或 `HTMLSHARE_KV`），点击保存。
+2. **在 Pages 中添加绑定**：
+   - 进入你的 Pages 项目 -> 点击 **Settings** 标签页 -> 点击左侧 **Functions**；
+   - 向下滚动到 **KV namespace bindings**（KV 命名空间绑定）区域，点击 **Add binding**；
+   - **Variable name（变量名称）**：严格输入大写的 **`KV_SNIPPETS`**（支持 `HTMLSHARE_KV`）；
+   - **KV namespace（KV 命名空间）**：选择上面创建的命名空间；
+   - 点击 **Save**（保存）。
+3. **重新部署生效**：
+   - 进入 Pages 项目的 **Deployments** 标签页，点击最新部署右侧的 `...` -> 选择 **Retry deployment**（重试部署）；
+   - 部署完成后，在网站前端点击【保存 & 发布短链】，即可畅享全球毫秒级存取与短链分享！
+
+#### 3. 方式 B：在 https://dash.cloudflare.com/ 网页端直接拖拽 Direct Upload 部署（零 Git 仓库要求）
 
 1. **本地打包**：
    ```bash

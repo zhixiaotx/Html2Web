@@ -207,7 +207,17 @@ export default function App() {
         body: JSON.stringify(payload),
       });
 
-      const json = await res.json();
+      const responseText = await res.text();
+      let json: any;
+      try {
+        json = JSON.parse(responseText);
+      } catch (parseErr) {
+        throw new Error(
+          res.ok
+            ? '后端返回非 JSON 响应。如果您使用的是 Cloudflare Pages，请确认已在 Pages Settings > Functions > KV namespace bindings 中将 Variable name 绑定为 KV_SNIPPETS'
+            : `服务器返回异常 (HTTP ${res.status}): ${responseText.slice(0, 100)}`
+        );
+      }
 
       if (!json.success) {
         throw new Error(json.error || '保存失败');
