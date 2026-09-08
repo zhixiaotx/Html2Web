@@ -9,14 +9,14 @@ export interface ParsedHtmlResult {
  * Intelligent HTML parser that can:
  * 1. Extract <title> for the snippet title
  * 2. Optionally split embedded <style> into CSS and <script> into JS
- * 3. Or preserve full HTML structure intact
+ * 3. Reliably preserve all <html class="...">, <body class="...">, external <script src="..."> and CDN links
  */
 export function parseFullHtml(content: string, splitSubtags: boolean = true): ParsedHtmlResult {
   if (!content) {
     return { html: '', css: '', js: '', title: '' };
   }
 
-  // Extract title if present
+  // 1. Extract title if present
   let title = '';
   const titleMatch = content.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   if (titleMatch) {
@@ -32,7 +32,7 @@ export function parseFullHtml(content: string, splitSubtags: boolean = true): Pa
     };
   }
 
-  // Extract <style> contents
+  // 2. Extract <style> contents
   let css = '';
   const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
   let styleMatch;
@@ -43,9 +43,9 @@ export function parseFullHtml(content: string, splitSubtags: boolean = true): Pa
     }
   }
 
-  // Extract <script> contents (ignore external scripts with src=)
+  // 3. Extract inline <script> contents (ignore external scripts with src= and templates)
   let js = '';
-  const scriptRegex = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi;
+  const scriptRegex = /<script(?![^>]*\bsrc=)(?![^>]*\btype=["'](?:application\/json|text\/template)["'])[^>]*>([\s\S]*?)<\/script>/gi;
   let scriptMatch;
   while ((scriptMatch = scriptRegex.exec(content)) !== null) {
     const scriptCode = scriptMatch[1].trim();
@@ -54,27 +54,18 @@ export function parseFullHtml(content: string, splitSubtags: boolean = true): Pa
     }
   }
 
-  // Remove extracted <style> and inline <script> tags from the HTML
+  // 4. Remove extracted <style> and inline <script> tags, but strictly PRESERVE:
+  // - <!DOCTYPE html>
+  // - <html ...> with its classes/attributes
+  // - <head> with external scripts (<script src="...">), Tailwind CDN, stylesheets, fonts
+  // - <body ...> with its classes/attributes
   let cleanHtml = content
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/gi, '');
-
-  // If there's a <body>...</body>, we can extract the inner body if appropriate
-  const bodyMatch = cleanHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-  if (bodyMatch && bodyMatch[1].trim()) {
-    cleanHtml = bodyMatch[1].trim();
-  } else {
-    // If not, clean out doctype and html/head tags if they are empty
-    cleanHtml = cleanHtml
-      .replace(/<!DOCTYPE[^>]*>/gi, '')
-      .replace(/<html[^>]*>/gi, '')
-      .replace(/<\/html>/gi, '')
-      .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
-      .trim();
-  }
+    .replace(/<script(?![^>]*\bsrc=)(?![^>]*\btype=["'](?:application\/json|text\/template)["'])[^>]*>[\s\S]*?<\/script>/gi, '')
+    .trim();
 
   return {
-    html: cleanHtml.trim() || content.trim(),
+    html: cleanHtml || content.trim(),
     css: css.trim(),
     js: js.trim(),
     title,

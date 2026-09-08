@@ -1,5 +1,5 @@
 /**
- * Cloudflare Pages Functions - /raw/:slug 边缘直出
+ * Cloudflare Pages Functions - /p/:slug 永久链接边缘直出渲染
  */
 
 const corsHeaders = {

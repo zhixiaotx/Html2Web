@@ -251,8 +251,44 @@ export const onRequest = async (context: any) => {
             raw = await kv.get(`snippet:${mappedSlug}`);
           }
         }
-        if (raw) {
-          foundSnippet = JSON.parse(raw);
+        if (!raw) {
+          raw = await kv.get(idOrSlug);
+        }
+        if (!raw) {
+          raw = await kv.get(`html:${idOrSlug}`);
+          if (raw && typeof raw === "string" && (raw.includes("<!DOCTYPE") || raw.includes("<html") || raw.includes("<div"))) {
+            foundSnippet = {
+              id: idOrSlug,
+              slug: idOrSlug,
+              title: "Hosted Snippet",
+              html: raw,
+              css: "",
+              js: "",
+              isPublic: true,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              views: 1,
+              tags: ["kv"],
+            };
+            raw = null;
+          }
+        }
+        if (raw && !foundSnippet) {
+          try {
+            foundSnippet = JSON.parse(raw);
+          } catch (e) {
+            foundSnippet = {
+              id: idOrSlug,
+              slug: idOrSlug,
+              title: "Hosted Snippet",
+              html: raw,
+              css: "",
+              js: "",
+              isPublic: true,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+          }
         }
       }
 
