@@ -781,6 +781,80 @@ async function startServer() {
     }
   });
 
+  // Compatible POST /generate endpoint (inspired by wasmer HTML renderer)
+  app.post("/generate", async (req, res) => {
+    try {
+      const { type, url, code } = req.body || {};
+      let htmlContent = "";
+      let title = "♡｡Sky.✨ 永久页面";
+
+      if (type === "url") {
+        if (!url) {
+          return res.status(400).json({ success: false, error: "请输入有效的代码链接" });
+        }
+        const normalizedUrl = normalizeRawUrl(url);
+        const resp = await fetch(normalizedUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) HTMLShare/1.0",
+            Accept: "text/html,application/xhtml+xml,application/xml,text/plain,*/*",
+          },
+        });
+        if (!resp.ok) {
+          throw new Error(`远程链接抓取失败: HTTP ${resp.status}`);
+        }
+        htmlContent = await resp.text();
+        const titleMatch = htmlContent.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+        if (titleMatch) title = titleMatch[1].trim();
+        else title = url.split("/").pop()?.split("?")[0] || "从 URL 生成的页面";
+      } else if (type === "code") {
+        if (!code || !code.trim()) {
+          return res.status(400).json({ success: false, error: "请粘贴 HTML 代码" });
+        }
+        htmlContent = code;
+        const titleMatch = htmlContent.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+        if (titleMatch) title = titleMatch[1].trim();
+      } else {
+        return res.status(400).json({ success: false, error: "无效的生成请求类型" });
+      }
+
+      const snippets = await loadSnippets();
+      const slug = generateRandomSlug(6);
+      const newId = `snp_${generateRandomSlug(8)}`;
+      const now = new Date().toISOString();
+
+      const newSnippet: StoredSnippet = {
+        id: newId,
+        slug,
+        title: title || "♡｡Sky.✨ 永久页面",
+        description: "由 Sky 渲染器极简生成的永久链接页面",
+        html: htmlContent,
+        css: "",
+        js: "",
+        isPublic: true,
+        expiresAt: null,
+        createdAt: now,
+        updatedAt: now,
+        views: 0,
+        forksCount: 0,
+        forkedFrom: null,
+        tags: ["sky-renderer", type || "quick"],
+      };
+
+      snippets.push(newSnippet);
+      await saveSnippets(snippets);
+
+      res.json({
+        success: true,
+        code: slug,
+        slug,
+        url: `/p/${slug}`,
+        rawUrl: `/raw/${slug}`,
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // Fetch remote URL content (proxies requests to bypass browser CORS for GitHub, Bitbucket, GitLab, etc.)
   app.post("/api/fetch-url", async (req, res) => {
     try {

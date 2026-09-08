@@ -19,6 +19,8 @@ import {
 import { ThemeMode } from '../types';
 
 interface HeaderProps {
+  appMode: 'generator' | 'workbench';
+  onToggleAppMode: () => void;
   onNew: () => void;
   onOpenImportModal: () => void;
   onSave: () => void;
@@ -33,6 +35,8 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
+  appMode,
+  onToggleAppMode,
   onNew,
   onOpenImportModal,
   onSave,
@@ -127,6 +131,30 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Action Toolbar */}
       <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Sky Renderer Mode / Workbench Switcher */}
+        <button
+          onClick={onToggleAppMode}
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer shadow-sm ${
+            appMode === 'generator'
+              ? 'bg-gradient-to-r from-pink-500/20 to-purple-500/20 text-pink-500 dark:text-pink-300 border-pink-500/40 hover:from-pink-500/30 hover:to-purple-500/30'
+              : 'bg-indigo-500/10 text-indigo-500 dark:text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/20'
+          }`}
+          title={appMode === 'generator' ? '切换到代码工作台' : '切换到 Sky 极简永久链接生成器 (wasmer风格)'}
+        >
+          {appMode === 'generator' ? (
+            <>
+              <Code2 className="w-3.5 h-3.5" />
+              <span>进入工作台</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-3.5 h-3.5 text-pink-400" />
+              <span className="hidden sm:inline">♡｡Sky.✨ 生成器</span>
+              <span className="sm:hidden">Sky 模式</span>
+            </>
+          )}
+        </button>
+
         {/* Theme Switcher */}
         <div className="relative" ref={themeMenuRef}>
           <button

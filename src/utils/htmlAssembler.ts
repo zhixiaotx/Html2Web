@@ -13,7 +13,7 @@ export interface AssembleOptions {
 
 export function assembleFullHtml(options: AssembleOptions): string {
   const {
-    title = 'HTMLShare Page',
+    title = 'HTML 页面预览',
     html = '',
     css = '',
     js = '',
@@ -30,7 +30,7 @@ export function assembleFullHtml(options: AssembleOptions): string {
     /<head[\s>]/i.test(rawHtml) ||
     /<body[\s>]/i.test(rawHtml);
 
-  // 控制台代理 & 沙箱安全垫片（防止 iframe 中 pushState/alert 抛出 SecurityError 崩溃）
+  // 控制台代理 & 沙箱安全垫片（防止 iframe 中 pushState/alert 抛出 SecurityError 崩溃，并确保 100% 视口撑开）
   const sandboxSafetyProxyScript = includeConsoleProxy
     ? `<script>
     (function() {
@@ -102,6 +102,12 @@ export function assembleFullHtml(options: AssembleOptions): string {
       }
     }
 
+    if (!/<meta[^>]*viewport/i.test(result)) {
+      if (/<head[\s>]/i.test(result)) {
+        result = result.replace(/<head([^>]*)>/i, '<head$1>\n  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">');
+      }
+    }
+
     // 注入控制台代理与安全垫片（最先置于 <head> 或 <body> 开头）
     if (sandboxSafetyProxyScript) {
       if (/<head[\s>]/i.test(result)) {
@@ -161,7 +167,19 @@ export function assembleFullHtml(options: AssembleOptions): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>${title}</title>
-${sandboxSafetyProxyScript ? `  ${sandboxSafetyProxyScript}\n` : ''}${tailwindScript}${rawCss ? `  <style>\n${rawCss}\n  </style>\n` : ''}</head>
+${sandboxSafetyProxyScript ? `  ${sandboxSafetyProxyScript}\n` : ''}${tailwindScript}  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      min-height: 100%;
+      box-sizing: border-box;
+    }
+    *, *::before, *::after {
+      box-sizing: inherit;
+    }
+${rawCss ? `    ${rawCss.split('\n').join('\n    ')}\n` : ''}  </style>
+</head>
 <body>
 ${rawHtml}
 ${rawJs ? `  <script>\n${rawJs}\n  </script>` : ''}

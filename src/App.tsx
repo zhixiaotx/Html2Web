@@ -11,10 +11,12 @@ import { CloudflareModal } from './components/CloudflareModal';
 import { MySnippetsModal } from './components/MySnippetsModal';
 import { PasscodeModal } from './components/PasscodeModal';
 import { ImportCodeModal } from './components/ImportCodeModal';
+import { SkyQuickRenderer } from './components/SkyQuickRenderer';
 import { parseFullHtml } from './utils/htmlParser';
 import { DEFAULT_HTML, DEFAULT_CSS, DEFAULT_JS } from './constants/defaultSnippet';
 
 export default function App() {
+  const [appMode, setAppMode] = useState<'workbench' | 'generator'>('workbench');
   const [activeTab, setActiveTab] = useState<ViewTab>('html');
   const [html, setHtml] = useState(DEFAULT_HTML);
   const [css, setCss] = useState(DEFAULT_CSS);
@@ -58,8 +60,8 @@ export default function App() {
   const [passcodeError, setPasscodeError] = useState('');
   const [pendingSlug, setPendingSlug] = useState<string | null>(null);
 
-  // Mobile viewport workbench view ('editor' | 'preview' | 'split')
-  const [mobileView, setMobileView] = useState<'editor' | 'preview' | 'split'>('editor');
+  // Workbench layout view mode ('split' | 'editor' | 'preview')
+  const [workbenchLayout, setWorkbenchLayout] = useState<'split' | 'editor' | 'preview'>('split');
 
   // Share result URLs
   const [publishedShareUrl, setPublishedShareUrl] = useState('');
@@ -319,6 +321,8 @@ export default function App() {
     >
       {/* Top Header Navbar */}
       <Header
+        appMode={appMode}
+        onToggleAppMode={() => setAppMode(appMode === 'workbench' ? 'generator' : 'workbench')}
         onNew={handleNewSnippet}
         onOpenImportModal={() => setShowImportModal(true)}
         onSave={() => setShowPublishModal(true)}
@@ -332,116 +336,161 @@ export default function App() {
         onThemeChange={setTheme}
       />
 
-      {/* Mobile Responsive View Toggle Bar (< lg) */}
-      <div
-        style={{
-          backgroundColor: 'var(--bg-surface)',
-          borderColor: 'var(--border-subtle)',
-        }}
-        className="lg:hidden flex items-center justify-between px-3 py-1.5 border-b text-xs shrink-0 z-10 gap-2"
-      >
-        <div className="flex items-center gap-1.5 flex-1 sm:flex-initial">
-          <button
-            onClick={() => setMobileView('editor')}
-            style={{
-              backgroundColor: mobileView === 'editor' ? 'var(--accent-primary)' : 'var(--bg-surface-elevated)',
-              color: mobileView === 'editor' ? 'var(--accent-text)' : 'var(--text-main)',
-              borderColor: 'var(--border-subtle)',
+      {/* Mode 1: Sky Quick Generator Mode (Inspired by wasmer HTML Renderer) */}
+      {appMode === 'generator' ? (
+        <div className="flex-1 overflow-y-auto flex items-center justify-center p-4">
+          <SkyQuickRenderer
+            theme={theme}
+            onThemeToggle={() =>
+              setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'high-contrast' : 'dark')
+            }
+            onOpenWorkbench={(newCode, newSlug) => {
+              if (newCode) {
+                const parsed = parseFullHtml(newCode, true);
+                setHtml(parsed.html);
+                setCss(parsed.css);
+                setJs(parsed.js);
+                if (parsed.title) setTitle(parsed.title);
+              }
+              if (newSlug) {
+                setSlug(newSlug);
+                loadSnippetFromSlug(newSlug);
+              }
+              setAppMode('workbench');
             }}
-            className="flex-1 sm:flex-initial px-2.5 py-1.5 min-h-[34px] rounded-lg border text-xs font-semibold transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1"
-          >
-            <span>💻</span>
-            <span>代码编辑</span>
-          </button>
-          <button
-            onClick={() => setMobileView('preview')}
-            style={{
-              backgroundColor: mobileView === 'preview' ? 'var(--accent-primary)' : 'var(--bg-surface-elevated)',
-              color: mobileView === 'preview' ? 'var(--accent-text)' : 'var(--text-main)',
-              borderColor: 'var(--border-subtle)',
-            }}
-            className="flex-1 sm:flex-initial px-2.5 py-1.5 min-h-[34px] rounded-lg border text-xs font-semibold transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1"
-          >
-            <span>👁️</span>
-            <span>实时预览</span>
-          </button>
-          <button
-            onClick={() => setMobileView('split')}
-            style={{
-              backgroundColor: mobileView === 'split' ? 'var(--accent-primary)' : 'var(--bg-surface-elevated)',
-              color: mobileView === 'split' ? 'var(--accent-text)' : 'var(--text-main)',
-              borderColor: 'var(--border-subtle)',
-            }}
-            className="flex-1 sm:flex-initial px-2 py-1.5 min-h-[34px] rounded-lg border text-xs font-semibold transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1"
-          >
-            <span>⬍</span>
-            <span className="hidden xs:inline">分屏</span>
-          </button>
-        </div>
-
-        <button
-          onClick={handleOpenRawPage}
-          style={{
-            backgroundColor: 'var(--bg-surface-elevated)',
-            borderColor: 'var(--border-subtle)',
-            color: 'var(--text-muted)',
-          }}
-          className="p-2 border rounded-lg hover:opacity-80 transition-opacity shrink-0 flex items-center justify-center min-h-[34px] min-w-[34px]"
-          title="在新标签页中全屏运行"
-        >
-          <ExternalLink className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      {/* Main Responsive Workbench */}
-      <main
-        className={`flex-1 overflow-hidden relative ${
-          mobileView === 'split'
-            ? 'grid grid-cols-1 grid-rows-2 lg:grid-rows-1 lg:grid-cols-2'
-            : 'flex flex-col lg:grid lg:grid-cols-2'
-        }`}
-      >
-        {/* Left Column: Code Editor */}
-        <div
-          className={`h-full overflow-hidden ${
-            mobileView === 'editor'
-              ? 'flex-1 flex flex-col'
-              : mobileView === 'split'
-              ? 'h-full'
-              : 'hidden lg:flex lg:flex-col'
-          }`}
-        >
-          <CodeEditor
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            html={html}
-            setHtml={setHtml}
-            css={css}
-            setCss={setCss}
-            js={js}
-            setJs={setJs}
           />
         </div>
+      ) : (
+        /* Mode 2: Multi-window Code Workbench */
+        <>
+          {/* Global & Responsive View Toggle Bar */}
+          <div
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              borderColor: 'var(--border-subtle)',
+            }}
+            className="flex items-center justify-between px-3 py-1.5 border-b text-xs shrink-0 z-10 gap-2"
+          >
+            <div className="flex items-center gap-1.5 flex-1 sm:flex-initial">
+              <button
+                onClick={() => setWorkbenchLayout('split')}
+                style={{
+                  backgroundColor: workbenchLayout === 'split' ? 'var(--accent-primary)' : 'var(--bg-surface-elevated)',
+                  color: workbenchLayout === 'split' ? 'var(--accent-text)' : 'var(--text-main)',
+                  borderColor: 'var(--border-subtle)',
+                }}
+                className="px-2.5 py-1.5 min-h-[32px] rounded-lg border text-xs font-semibold transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1"
+                title="左右双栏分屏视图 (代码 + 实时预览)"
+              >
+                <span>⬍</span>
+                <span>分屏协作</span>
+              </button>
+              <button
+                onClick={() => setWorkbenchLayout('preview')}
+                style={{
+                  backgroundColor: workbenchLayout === 'preview' ? 'var(--accent-primary)' : 'var(--bg-surface-elevated)',
+                  color: workbenchLayout === 'preview' ? 'var(--accent-text)' : 'var(--text-main)',
+                  borderColor: 'var(--border-subtle)',
+                }}
+                className="px-2.5 py-1.5 min-h-[32px] rounded-lg border text-xs font-semibold transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1"
+                title="全屏完整预览 (100% 宽屏，完整呈现图一桌面双栏与歌词效果)"
+              >
+                <span>👁️</span>
+                <span>纯预览 (全宽)</span>
+              </button>
+              <button
+                onClick={() => setWorkbenchLayout('editor')}
+                style={{
+                  backgroundColor: workbenchLayout === 'editor' ? 'var(--accent-primary)' : 'var(--bg-surface-elevated)',
+                  color: workbenchLayout === 'editor' ? 'var(--accent-text)' : 'var(--text-main)',
+                  borderColor: 'var(--border-subtle)',
+                }}
+                className="px-2.5 py-1.5 min-h-[32px] rounded-lg border text-xs font-semibold transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1"
+                title="纯代码编辑模式"
+              >
+                <span>💻</span>
+                <span>代码模式</span>
+              </button>
+            </div>
 
-        {/* Right Column: Live Responsive Preview & Terminal Panel */}
-        <div
-          style={{ borderColor: 'var(--border-subtle)' }}
-          className={`h-full overflow-hidden border-t lg:border-t-0 lg:border-l transition-colors ${
-            mobileView === 'preview'
-              ? 'flex-1 flex flex-col'
-              : mobileView === 'split'
-              ? 'h-full'
-              : 'hidden lg:flex lg:flex-col'
-          }`}
-        >
-          <PreviewPanel
-            html={html}
-            css={css}
-            js={js}
-            rawUrl={slug ? `/raw/${slug}` : undefined}
-          />
-        </div>
-      </main>
+            <div className="flex items-center gap-2">
+              {workbenchLayout === 'preview' && (
+                <span className="hidden sm:inline-flex text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  ✓ 100% 全屏桌面渲染模式
+                </span>
+              )}
+              <button
+                onClick={handleOpenRawPage}
+                style={{
+                  backgroundColor: 'var(--bg-surface-elevated)',
+                  borderColor: 'var(--border-subtle)',
+                  color: 'var(--text-main)',
+                }}
+                className="px-2.5 py-1.5 border rounded-lg hover:opacity-80 transition-opacity shrink-0 flex items-center justify-center gap-1 text-xs font-semibold min-h-[32px] cursor-pointer"
+                title="在新标签页中独立全屏运行 (图一效果)"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="hidden sm:inline">独立新窗口打开</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Main Responsive Workbench */}
+          <main
+            className={`flex-1 overflow-hidden relative ${
+              workbenchLayout === 'split'
+                ? 'grid grid-cols-1 grid-rows-2 lg:grid-rows-1 lg:grid-cols-2'
+                : 'flex flex-col'
+            }`}
+          >
+            {/* Left Column: Code Editor */}
+            <div
+              className={`h-full overflow-hidden ${
+                workbenchLayout === 'editor'
+                  ? 'flex-1 flex flex-col'
+                  : workbenchLayout === 'split'
+                  ? 'h-full'
+                  : 'hidden'
+              }`}
+            >
+              <CodeEditor
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                html={html}
+                setHtml={setHtml}
+                css={css}
+                setCss={setCss}
+                js={js}
+                setJs={setJs}
+              />
+            </div>
+
+            {/* Right Column: Live Responsive Preview & Terminal Panel */}
+            <div
+              style={{ borderColor: 'var(--border-subtle)' }}
+              className={`h-full overflow-hidden transition-colors ${
+                workbenchLayout === 'preview'
+                  ? 'flex-1 flex flex-col'
+                  : workbenchLayout === 'split'
+                  ? 'h-full border-t lg:border-t-0 lg:border-l'
+                  : 'hidden'
+              }`}
+            >
+              <PreviewPanel
+                html={html}
+                css={css}
+                js={js}
+                rawUrl={slug ? `/raw/${slug}` : undefined}
+                isMaximized={workbenchLayout === 'preview'}
+                onToggleMaximize={() =>
+                  setWorkbenchLayout((prev) => (prev === 'preview' ? 'split' : 'preview'))
+                }
+                onOpenRaw={handleOpenRawPage}
+              />
+            </div>
+          </main>
+        </>
+      )}
 
       {/* Publish Options Modal */}
       <PublishModal

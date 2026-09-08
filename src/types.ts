@@ -20,7 +20,7 @@ export interface Snippet {
 
 export type ViewTab = 'html' | 'css' | 'js' | 'combined';
 
-export type DeviceViewport = 'desktop' | 'tablet' | 'mobile';
+export type DeviceViewport = 'fluid' | 'desktop' | 'large-desktop' | 'full-hd' | 'tablet' | 'mobile' | 'custom';
 
 export interface ConsoleLog {
   id: string;

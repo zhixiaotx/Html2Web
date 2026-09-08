@@ -43,12 +43,16 @@ export function parseFullHtml(content: string, splitSubtags: boolean = true): Pa
     }
   }
 
-  // 3. Extract inline <script> contents (ignore external scripts with src= and templates)
+  // 3. Extract inline <script> contents (ignore external scripts with src=, templates, and keep tailwind.config in head)
   let js = '';
   const scriptRegex = /<script(?![^>]*\bsrc=)(?![^>]*\btype=["'](?:application\/json|text\/template)["'])[^>]*>([\s\S]*?)<\/script>/gi;
   let scriptMatch;
   while ((scriptMatch = scriptRegex.exec(content)) !== null) {
     const scriptCode = scriptMatch[1].trim();
+    // If it's a tailwind config script, preserve it in the HTML head so Tailwind CDN compiles custom colors immediately
+    if (scriptCode.includes('tailwind.config') || scriptCode.includes('tailwind =')) {
+      continue;
+    }
     if (scriptCode) {
       js += (js ? '\n\n' : '') + scriptCode;
     }
@@ -57,11 +61,16 @@ export function parseFullHtml(content: string, splitSubtags: boolean = true): Pa
   // 4. Remove extracted <style> and inline <script> tags, but strictly PRESERVE:
   // - <!DOCTYPE html>
   // - <html ...> with its classes/attributes
-  // - <head> with external scripts (<script src="...">), Tailwind CDN, stylesheets, fonts
+  // - <head> with external scripts (<script src="...">), tailwind.config, stylesheets, fonts
   // - <body ...> with its classes/attributes
   let cleanHtml = content
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<script(?![^>]*\bsrc=)(?![^>]*\btype=["'](?:application\/json|text\/template)["'])[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<script(?![^>]*\bsrc=)(?![^>]*\btype=["'](?:application\/json|text\/template)["'])[^>]*>([\s\S]*?)<\/script>/gi, (match, p1) => {
+      if (p1 && (p1.includes('tailwind.config') || p1.includes('tailwind ='))) {
+        return match; // preserve tailwind config in head
+      }
+      return '';
+    })
     .trim();
 
   return {

@@ -116,13 +116,27 @@ export const onRequestGet = async (context: any) => {
       }
     }
   } else {
+    const usesTailwind =
+      rawHtml.includes("class=") &&
+      (rawHtml.includes("flex") ||
+        rawHtml.includes("text-") ||
+        rawHtml.includes("bg-") ||
+        rawHtml.includes("rounded") ||
+        rawHtml.includes("grid") ||
+        rawHtml.includes("dark:"));
+
+    const tailwindScript =
+      usesTailwind && !rawHtml.includes("tailwindcss.com")
+        ? '  <script src="https://cdn.tailwindcss.com"></script>\n'
+        : "";
+
     fullHtml = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
   <title>${snippet.title || "HTMLShare 代码预览"}</title>
-  ${rawCss ? `<style>\n${rawCss}\n</style>` : ""}
+${tailwindScript}  ${rawCss ? `<style>\n${rawCss}\n</style>` : ""}
 </head>
 <body>
 ${rawHtml}

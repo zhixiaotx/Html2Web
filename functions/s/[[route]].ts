@@ -7,17 +7,8 @@ export const onRequest = async (context: any) => {
   const { request, env } = context;
 
   if (env.ASSETS) {
-    const url = new URL(request.url);
-    // 重定向内部请求至 / (即 index.html)，由浏览器 SPA 接管 /s/:slug 路由
     const assetUrl = new URL('/', request.url);
-    const assetResponse = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
-    return new Response(assetResponse.body, {
-      status: 200,
-      headers: {
-        ...Object.fromEntries(assetResponse.headers.entries()),
-        'Content-Type': 'text/html; charset=utf-8',
-      },
-    });
+    return env.ASSETS.fetch(new Request(assetUrl.toString(), request));
   }
 
   return new Response('Cloudflare Pages ASSETS binding not found', { status: 500 });
