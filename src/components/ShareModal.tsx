@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Copy, Check, ExternalLink, Code2, Download, Globe, Archive } from 'lucide-react';
 import JSZip from 'jszip';
+import { assembleFullHtml } from '../utils/htmlAssembler';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -29,8 +30,15 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
   if (!isOpen) return null;
 
-  const fullShareUrl = window.location.origin + shareUrl;
-  const fullRawUrl = window.location.origin + rawUrl;
+  // 严格修复 URL 拼接，防止出现 https://domain.devhttps://domain.dev/s/xxx 重复前缀
+  const formatFullUrl = (url: string, fallbackPath: string) => {
+    if (!url) return window.location.origin + fallbackPath;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return `${window.location.origin}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
+  const fullShareUrl = formatFullUrl(shareUrl, `/s/${slug}`);
+  const fullRawUrl = formatFullUrl(rawUrl, `/raw/${slug}`);
   const embedCode = `<iframe src="${fullRawUrl}" width="100%" height="500" style="border:none; border-radius:12px; overflow:hidden;" title="${title}"></iframe>`;
 
   const copyToClipboard = (text: string, type: string) => {
@@ -40,23 +48,13 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   };
 
   const handleDownloadSingleHtml = () => {
-    const fullHtml = `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title || 'HTMLShare Hosted Page'}</title>
-  <style>
-${css}
-  </style>
-</head>
-<body>
-${html}
-  <script>
-${js}
-  </script>
-</body>
-</html>`;
+    const fullHtml = assembleFullHtml({
+      title: title || 'HTMLShare Hosted Page',
+      html,
+      css,
+      js,
+      includeConsoleProxy: false,
+    });
 
     const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);

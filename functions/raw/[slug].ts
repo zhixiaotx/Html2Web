@@ -53,23 +53,47 @@ export const onRequestGet = async (context: any) => {
     });
   }
 
-  const fullHtml = `<!DOCTYPE html>
+  const rawHtml = (snippet.html || "").trim();
+  const rawCss = (snippet.css || "").trim();
+  const rawJs = (snippet.js || "").trim();
+  const isFullDoc = /<!DOCTYPE\s+html/i.test(rawHtml) || /<html[\s>]/i.test(rawHtml);
+
+  let fullHtml = "";
+  if (isFullDoc) {
+    fullHtml = rawHtml;
+    if (rawCss) {
+      const styleTag = `<style>\n${rawCss}\n</style>`;
+      if (/<\/head>/i.test(fullHtml)) {
+        fullHtml = fullHtml.replace(/<\/head>/i, `${styleTag}\n</head>`);
+      } else if (/<body[\s>]/i.test(fullHtml)) {
+        fullHtml = fullHtml.replace(/<body([^>]*)>/i, `<body$1>\n${styleTag}`);
+      } else {
+        fullHtml = `${styleTag}\n${fullHtml}`;
+      }
+    }
+    if (rawJs) {
+      const scriptTag = `<script>\n${rawJs}\n</script>`;
+      if (/<\/body>/i.test(fullHtml)) {
+        fullHtml = fullHtml.replace(/<\/body>/i, `${scriptTag}\n</body>`);
+      } else {
+        fullHtml = `${fullHtml}\n${scriptTag}`;
+      }
+    }
+  } else {
+    fullHtml = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
   <title>${snippet.title || "HTMLShare 代码预览"}</title>
-  <style>
-${snippet.css || ""}
-  </style>
+  ${rawCss ? `<style>\n${rawCss}\n</style>` : ""}
 </head>
 <body>
-${snippet.html || ""}
-  <script>
-${snippet.js || ""}
-  </script>
+${rawHtml}
+${rawJs ? `  <script>\n${rawJs}\n  </script>` : ""}
 </body>
 </html>`;
+  }
 
   return new Response(fullHtml, {
     headers: {

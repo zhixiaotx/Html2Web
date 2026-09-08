@@ -132,21 +132,45 @@ export function normalizeRawUrl(inputUrl: string): string {
 }
 
 function buildFullHtml(html: string, css: string, js: string, title = "Hosted Page"): string {
+  const rawHtml = (html || "").trim();
+  const rawCss = (css || "").trim();
+  const rawJs = (js || "").trim();
+  const isFullDoc = /<!DOCTYPE\s+html/i.test(rawHtml) || /<html[\s>]/i.test(rawHtml);
+
+  if (isFullDoc) {
+    let result = rawHtml;
+    if (rawCss) {
+      const styleTag = `<style>\n${rawCss}\n</style>`;
+      if (/<\/head>/i.test(result)) {
+        result = result.replace(/<\/head>/i, `${styleTag}\n</head>`);
+      } else if (/<body[\s>]/i.test(result)) {
+        result = result.replace(/<body([^>]*)>/i, `<body$1>\n${styleTag}`);
+      } else {
+        result = `${styleTag}\n${result}`;
+      }
+    }
+    if (rawJs) {
+      const scriptTag = `<script>\n${rawJs}\n</script>`;
+      if (/<\/body>/i.test(result)) {
+        result = result.replace(/<\/body>/i, `${scriptTag}\n</body>`);
+      } else {
+        result = `${result}\n${scriptTag}`;
+      }
+    }
+    return result;
+  }
+
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>${title}</title>
-  <style>
-${css || ""}
-  </style>
+  ${rawCss ? `<style>\n${rawCss}\n</style>` : ""}
 </head>
 <body>
-${html || ""}
-  <script>
-${js || ""}
-  </script>
+${rawHtml}
+${rawJs ? `  <script>\n${rawJs}\n  </script>` : ""}
 </body>
 </html>`;
 }

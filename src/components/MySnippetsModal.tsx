@@ -124,7 +124,19 @@ export const MySnippetsModal: React.FC<MySnippetsModalProps> = ({
           password: adminPassword.trim(),
         }),
       });
-      const json = await res.json();
+
+      const responseText = await res.text();
+      let json: any;
+      try {
+        json = JSON.parse(responseText);
+      } catch {
+        throw new Error(
+          res.ok
+            ? '后端返回非 JSON 格式。如果您是在 Cloudflare Pages 部署，请确认 Functions 路由正常'
+            : `服务器返回异常 (HTTP ${res.status}): ${responseText.slice(0, 100)}`
+        );
+      }
+
       if (json.success && json.token) {
         sessionStorage.setItem('htmlshare_admin_token', json.token);
         setAdminToken(json.token);
@@ -135,7 +147,7 @@ export const MySnippetsModal: React.FC<MySnippetsModalProps> = ({
         setLoginError(json.error || '账号或密码错误');
       }
     } catch (err: any) {
-      setLoginError('网络请求失败: ' + err.message);
+      setLoginError(err.message || '登录异常，请重试');
     } finally {
       setIsLoggingIn(false);
     }

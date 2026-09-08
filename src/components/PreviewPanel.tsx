@@ -13,6 +13,7 @@ import {
   Maximize2,
   Check,
 } from 'lucide-react';
+import { assembleFullHtml } from '../utils/htmlAssembler';
 
 interface PreviewPanelProps {
   html: string;
@@ -36,69 +37,13 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({
 
   // Combine HTML + CSS + JS into single executable document with console proxy
   const generatePreviewDoc = () => {
-    return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    /* Default reset */
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    ${css || ''}
-  </style>
-  <script>
-    // Console proxy to send logs to parent preview panel
-    (function() {
-      const _log = console.log;
-      const _error = console.error;
-      const _warn = console.warn;
-      const _info = console.info;
-
-      function sendLog(type, args) {
-        try {
-          const message = Array.from(args).map(arg => {
-            if (typeof arg === 'object') {
-              try { return JSON.stringify(arg); } catch(e) { return String(arg); }
-            }
-            return String(arg);
-          }).join(' ');
-
-          window.parent.postMessage({
-            type: 'HTMLSHARE_CONSOLE_LOG',
-            logType: type,
-            message: message,
-            timestamp: new Date().toLocaleTimeString()
-          }, '*');
-        } catch(e) {}
-      }
-
-      console.log = function() { sendLog('log', arguments); _log.apply(console, arguments); };
-      console.error = function() { sendLog('error', arguments); _error.apply(console, arguments); };
-      console.warn = function() { sendLog('warn', arguments); _warn.apply(console, arguments); };
-      console.info = function() { sendLog('info', arguments); _info.apply(console, arguments); };
-
-      window.onerror = function(msg, url, line, col, error) {
-        sendLog('error', [\`Runtime Error: \${msg} (\${line}:\${col})\`]);
-        return false;
-      };
-    })();
-  </script>
-</head>
-<body>
-  ${html || ''}
-  <script>
-    try {
-      ${js || ''}
-    } catch(err) {
-      console.error('JS Syntax Error:', err.message);
-    }
-  </script>
-</body>
-</html>`;
+    return assembleFullHtml({
+      title: 'HTMLShare 实时预览',
+      html,
+      css,
+      js,
+      includeConsoleProxy: true,
+    });
   };
 
   // Listen to postMessage from iframe console proxy
