@@ -1,0 +1,6 @@
+{
+  "name": "HTMLShare - Code Snippet Sharing & Cloudflare Hosting Platform",
+  "description": "Clean, lightweight code snippet editor, instant HTML hosting, and preview platform with Cloudflare D1 & KV storage emulation and AI generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

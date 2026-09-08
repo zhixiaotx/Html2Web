@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+:root,
+[data-theme="dark"] {
+  --bg-app: #020617;
+  --bg-header: rgba(15, 23, 42, 0.92);
+  --bg-surface: #0f172a;
+  --bg-surface-elevated: #1e293b;
+  --bg-input: #020617;
+  --bg-gutter: #090d16;
+  --border-subtle: #1e293b;
+  --border-strong: #334155;
+  --border-accent: rgba(99, 102, 241, 0.3);
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --accent-primary: #6366f1;
+  --accent-hover: #4f46e5;
+  --accent-text: #ffffff;
+  --accent-soft: rgba(99, 102, 241, 0.15);
+  --badge-bg: rgba(99, 102, 241, 0.1);
+  --badge-text: #818cf8;
+}
+
+[data-theme="light"] {
+  --bg-app: #f8fafc;
+  --bg-header: rgba(255, 255, 255, 0.95);
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f1f5f9;
+  --bg-input: #f8fafc;
+  --bg-gutter: #f1f5f9;
+  --border-subtle: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --border-accent: rgba(99, 102, 241, 0.4);
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-dim: #64748b;
+  --accent-primary: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-text: #ffffff;
+  --accent-soft: rgba(79, 70, 229, 0.1);
+  --badge-bg: rgba(79, 70, 229, 0.08);
+  --badge-text: #4f46e5;
+}
+
+[data-theme="high-contrast"] {
+  --bg-app: #000000;
+  --bg-header: #000000;
+  --bg-surface: #0a0a0a;
+  --bg-surface-elevated: #171717;
+  --bg-input: #000000;
+  --bg-gutter: #0a0a0a;
+  --border-subtle: #ffffff;
+  --border-strong: #ffff00;
+  --border-accent: #00ffff;
+  --text-main: #ffffff;
+  --text-muted: #ffffff;
+  --text-dim: #ffffaa;
+  --accent-primary: #ffff00;
+  --accent-hover: #e6e600;
+  --accent-text: #000000;
+  --accent-soft: rgba(255, 255, 0, 0.2);
+  --badge-bg: #000000;
+  --badge-text: #00ffff;
+}
+
+body {
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Custom scrollbars themed with CSS variables */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-app);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary);
+}

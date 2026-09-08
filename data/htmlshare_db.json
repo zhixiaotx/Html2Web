@@ -1,0 +1,19 @@
+[
+  {
+    "id": "welcome-demo",
+    "slug": "welcome-demo",
+    "title": "✨ HTMLShare 欢迎示例卡片",
+    "description": "完全免费的代码片段分享平台，基于 Cloudflare D1 / KV 架构",
+    "html": "<div class=\"welcome-card\">\n  <div class=\"badge\">100% 免费 & 实时预览</div>\n  <h1>🚀 HTMLShare 托管平台</h1>\n  <p>实时渲染、自定义短链、密码保护与 Cloudflare D1/KV 无缝同步</p>\n  <div class=\"actions\">\n    <button id=\"counterBtn\" class=\"btn primary\">点击互动: <span id=\"count\">0</span></button>\n    <button id=\"particleBtn\" class=\"btn secondary\">触发彩带 🎉</button>\n  </div>\n</div>",
+    "css": "@import \"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap\";\n\n* {\n  box-sizing: border-box;\n}\n\nbody {\n  margin: 0;\n  padding: 0;\n  min-height: 100vh;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);\n  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;\n  color: #f8fafc;\n}\n\n.welcome-card {\n  background: rgba(30, 41, 59, 0.7);\n  backdrop-filter: blur(16px);\n  border: 1px solid rgba(255, 255, 255, 0.1);\n  padding: 2.5rem;\n  border-radius: 20px;\n  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);\n  max-width: 480px;\n  text-align: center;\n}\n\n.badge {\n  display: inline-block;\n  padding: 4px 12px;\n  background: rgba(99, 102, 241, 0.2);\n  color: #818cf8;\n  border: 1px solid rgba(99, 102, 241, 0.3);\n  border-radius: 999px;\n  font-size: 0.8rem;\n  font-weight: 600;\n  margin-bottom: 1rem;\n}\n\nh1 {\n  margin: 0 0 0.5rem 0;\n  font-size: 1.8rem;\n  letter-spacing: -0.02em;\n  background: linear-gradient(to right, #ffffff, #cbd5e1);\n  -webkit-background-clip: text;\n  -webkit-text-fill-color: transparent;\n}\n\np {\n  color: #94a3b8;\n  line-height: 1.6;\n  margin-bottom: 1.8rem;\n  font-size: 0.95rem;\n}\n\n.actions {\n  display: flex;\n  gap: 12px;\n  justify-content: center;\n}\n\n.btn {\n  padding: 10px 20px;\n  border-radius: 10px;\n  border: none;\n  font-weight: 600;\n  font-size: 0.9rem;\n  cursor: pointer;\n  transition: all 0.2s;\n}\n\n.btn.primary {\n  background: #6366f1;\n  color: white;\n}\n\n.btn.primary:hover {\n  background: #4f46e5;\n  transform: translateY(-2px);\n}\n\n.btn.secondary {\n  background: rgba(255, 255, 255, 0.1);\n  color: #e2e8f0;\n}\n\n.btn.secondary:hover {\n  background: rgba(255, 255, 255, 0.2);\n  transform: translateY(-2px);\n}",
+    "js": "let count = 0;\nconst countSpan = document.getElementById('count');\nconst counterBtn = document.getElementById('counterBtn');\nconst particleBtn = document.getElementById('particleBtn');\n\nif (counterBtn && countSpan) {\n  counterBtn.addEventListener('click', () => {\n    count++;\n    countSpan.textContent = count;\n    counterBtn.style.transform = 'scale(0.95)';\n    setTimeout(() => counterBtn.style.transform = '', 100);\n  });\n}\n\nif (particleBtn) {\n  particleBtn.addEventListener('click', () => {\n    for (let i = 0; i < 20; i++) {\n      const p = document.createElement('div');\n      p.textContent = ['🎉', '✨', '⚡️', '🚀', '💖'][Math.floor(Math.random() * 5)];\n      p.style.position = 'fixed';\n      p.style.left = Math.random() * 100 + 'vw';\n      p.style.top = '100vh';\n      p.style.fontSize = '24px';\n      p.style.pointerEvents = 'none';\n      p.style.transition = 'all 1.5s ease-out';\n      document.body.appendChild(p);\n      \n      requestAnimationFrame(() => {\n        p.style.transform = `translateY(-${Math.random() * 80 + 20}vh) rotate(${Math.random() * 360}deg)`;\n        p.style.opacity = '0';\n      });\n      \n      setTimeout(() => p.remove(), 1600);\n    }\n  });\n}",
+    "isPublic": true,
+    "expiresAt": null,
+    "createdAt": "2026-09-07T15:44:27.306Z",
+    "updatedAt": "2026-09-07T15:47:17.327Z",
+    "views": 130,
+    "forksCount": 12,
+    "forkedFrom": null,
+    "tags": ["demo", "starter"]
+  }
+]
