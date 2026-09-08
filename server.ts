@@ -312,7 +312,30 @@ async function startServer() {
       }
 
       const snippetId = id || `snp_${generateRandomSlug(8)}`;
-      const existingIndex = snippets.findIndex((s) => s.id === snippetId);
+      const existingIndex = snippets.findIndex((s) => s.id === snippetId || (slug && s.slug === slug));
+
+      // 防重复写入检测 (Idempotent Check)
+      if (existingIndex !== -1) {
+        const existing = snippets[existingIndex];
+        const isMatch =
+          existing.html === (html !== undefined ? html : existing.html) &&
+          existing.css === (css !== undefined ? css : existing.css) &&
+          existing.js === (js !== undefined ? js : existing.js) &&
+          existing.title === (title || existing.title) &&
+          existing.description === (description !== undefined ? description : existing.description) &&
+          existing.isPublic === (isPublic !== undefined ? isPublic : existing.isPublic) &&
+          (existing.passcode || undefined) === (passcode || undefined);
+
+        if (isMatch) {
+          return res.json({
+            success: true,
+            message: "数据未改变，直接复用已有记录（无重复写入）",
+            data: sanitizeSnippet(existing, passcode),
+            shareUrl: `/s/${existing.slug}`,
+            rawUrl: `/raw/${existing.slug}`,
+          });
+        }
+      }
 
       const now = new Date().toISOString();
 
@@ -355,7 +378,7 @@ async function startServer() {
       }
 
       await saveSnippets(snippets);
-      const savedItem = snippets.find((s) => s.id === snippetId)!;
+      const savedItem = snippets.find((s) => s.id === snippetId || s.slug === slug)!;
 
       res.json({
         success: true,

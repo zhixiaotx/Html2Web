@@ -164,19 +164,38 @@ ${rawJs ? `  <script>\n${rawJs}\n  <\/script>` : ""}
         });
       }
 
-      // 3. 发布新代码片段: POST /api/snippets
+      // 3. 发布/更新代码片段: POST /api/snippets (内置防重复写入机制)
       if (pathname === "/api/snippets" && request.method === "POST") {
         if (!env.DB) return json({ success: false, error: "D1 数据库未绑定" }, 500);
 
         const body = await request.json();
-        const id = crypto.randomUUID();
-        const slug = body.slug?.trim() || Math.random().toString(36).substring(2, 8);
+        const id = body.id || crypto.randomUUID();
+        const slug = (body.slug || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "") || Math.random().toString(36).substring(2, 8);
         const now = new Date().toISOString();
 
-        // 检查 slug 唯一性
-        const existing = await env.DB.prepare("SELECT id FROM snippets WHERE slug = ?").bind(slug).first();
+        // 1. 防重复写入检测：检查是否已有相同记录
+        const existing = await env.DB.prepare("SELECT * FROM snippets WHERE id = ? OR slug = ?").bind(id, slug).first();
         if (existing) {
-          return json({ success: false, error: "该个性化短链接已被占用，请更换" }, 409);
+          const isExactMatch =
+            (existing.html || "") === (body.html || "") &&
+            (existing.css || "") === (body.css || "") &&
+            (existing.js || "") === (body.js || "") &&
+            (existing.title || "") === (body.title || "") &&
+            (existing.description || "") === (body.description || "") &&
+            Boolean(existing.is_public) === (body.isPublic !== false) &&
+            (existing.passcode || null) === (body.passcode || null);
+
+          if (isExactMatch) {
+            return json({
+              success: true,
+              message: "数据未改变，直接复用已有记录（无重复写入）",
+              data: {
+                id: existing.id,
+                slug: existing.slug,
+                url: `${url.origin}/raw/${existing.slug}`,
+              },
+            });
+          }
         }
 
         await env.DB.prepare(`
@@ -185,6 +204,18 @@ ${rawJs ? `  <script>\n${rawJs}\n  <\/script>` : ""}
             is_public, passcode, expires_at, created_at, updated_at,
             views, forks_count, forked_from, tags
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            slug = excluded.slug,
+            title = excluded.title,
+            description = excluded.description,
+            html = excluded.html,
+            css = excluded.css,
+            js = excluded.js,
+            is_public = excluded.is_public,
+            passcode = excluded.passcode,
+            expires_at = excluded.expires_at,
+            updated_at = excluded.updated_at,
+            tags = excluded.tags
         `).bind(
           id,
           slug,
@@ -201,12 +232,6 @@ ${rawJs ? `  <script>\n${rawJs}\n  <\/script>` : ""}
           body.forkedFrom || null,
           JSON.stringify(body.tags || [])
         ).run();
-
-        // 如果是公开无密码片段，预热写入 KV 缓存
-        if (!body.passcode && env.KV_SNIPPETS) {
-          const prewarmedHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${body.title || "HTMLShare"}</title><style>${body.css || ""}</style></head><body>${body.html || ""}<script>${body.js || ""}<\/script></body></html>`;
-          ctx.waitUntil(env.KV_SNIPPETS.put(`html:${slug}`, prewarmedHtml, { expirationTtl: 3600 }));
-        }
 
         return json({
           success: true,

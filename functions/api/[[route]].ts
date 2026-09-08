@@ -117,11 +117,70 @@ export const onRequest = async (context: any) => {
         tags: Array.isArray(tags) ? tags : [],
       };
 
-      // 存储逻辑 A: 如果绑定了 D1 关系型数据库
+      // ==========================================
+      // 防重复写入检测 (Idempotent & Deduplication Check)
+      // ==========================================
+      let existingSnippet: any = null;
+
+      // 1. 先检查 D1 是否已有同 id 或同 slug 记录
       if (db) {
-        // 检查 slug 唯一性
-        const existing = await db.prepare("SELECT id FROM snippets WHERE slug = ?").bind(slug).first();
-        if (existing && existing.id !== snippetId) {
+        existingSnippet = await db.prepare("SELECT * FROM snippets WHERE id = ? OR slug = ?").bind(snippetId, slug).first();
+      } else if (kv) {
+        // 2. 检查 KV 是否已有对应记录
+        const existingRaw = await kv.get(`snippet:${slug}`);
+        if (existingRaw) {
+          try {
+            existingSnippet = JSON.parse(existingRaw);
+          } catch {}
+        }
+      }
+
+      // 如果数据内容完全一致，直接跳过数据库与 KV 写入，避免重复写入与无谓开销
+      if (existingSnippet) {
+        const existingHtml = existingSnippet.html || "";
+        const existingCss = existingSnippet.css || "";
+        const existingJs = existingSnippet.js || "";
+        const existingTitle = existingSnippet.title || "";
+        const existingDesc = existingSnippet.description || "";
+        const existingPublic = existingSnippet.is_public !== undefined ? Boolean(existingSnippet.is_public) : Boolean(existingSnippet.isPublic);
+        const existingPasscode = existingSnippet.passcode || null;
+        const newPasscode = snippetData.passcode || null;
+
+        const isExactMatch =
+          existingHtml === snippetData.html &&
+          existingCss === snippetData.css &&
+          existingJs === snippetData.js &&
+          existingTitle === snippetData.title &&
+          existingDesc === snippetData.description &&
+          existingPublic === snippetData.isPublic &&
+          existingPasscode === newPasscode;
+
+        if (isExactMatch) {
+          const finalSlug = existingSnippet.slug || slug;
+          return json({
+            success: true,
+            message: "数据未发生变更，已为您直接使用现有记录（无重复写入）",
+            shareUrl: `/s/${finalSlug}`,
+            rawUrl: `/raw/${finalSlug}`,
+            data: {
+              ...snippetData,
+              id: existingSnippet.id || snippetId,
+              slug: finalSlug,
+              createdAt: existingSnippet.created_at || existingSnippet.createdAt || now,
+              updatedAt: existingSnippet.updated_at || existingSnippet.updatedAt || now,
+              views: existingSnippet.views || 0,
+              forksCount: existingSnippet.forks_count || existingSnippet.forksCount || 0,
+              passcode: undefined,
+            },
+          });
+        }
+      }
+
+      // 存储逻辑 A: 如果绑定了 D1 关系型数据库 (D1 为主存储，绝不向 KV 重复写入冗余索引和别名)
+      if (db) {
+        // 检查 slug 唯一性冲突 (当创建新片段或修改 slug 时)
+        const slugOwner = await db.prepare("SELECT id FROM snippets WHERE slug = ?").bind(slug).first();
+        if (slugOwner && slugOwner.id !== snippetId) {
           slug = `${slug}-${generateRandomSlug(3)}`;
           snippetData.slug = slug;
         }
@@ -133,6 +192,7 @@ export const onRequest = async (context: any) => {
             views, forks_count, forked_from, tags
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
+            slug = excluded.slug,
             title = excluded.title,
             description = excluded.description,
             html = excluded.html,
@@ -159,63 +219,11 @@ export const onRequest = async (context: any) => {
           snippetData.forkedFrom || null,
           JSON.stringify(snippetData.tags)
         ).run();
-      }
-
-      // 存储逻辑 B: 存储至 KV 数据库
-      if (kv) {
-        // 保存片段数据
+      } else if (kv) {
+        // 存储逻辑 B: 仅当未配置 D1 时，才使用纯 KV 单一主键存储 (杜绝多键冗余与重复全表索引写入)
         const kvExpiration = expiresInHours ? { expirationTtl: expiresInHours * 3600 } : undefined;
+        // 统一只写单主键 snippet:${slug}
         await kv.put(`snippet:${slug}`, JSON.stringify(snippetData), kvExpiration);
-        if (slug !== snippetId) {
-          await kv.put(`snippet_id:${snippetId}`, slug, kvExpiration);
-        }
-
-        // 维护全量后台管理索引列表 (all_snippets_admin_index)
-        try {
-          const adminIndexRaw = await kv.get("all_snippets_admin_index");
-          let adminIndexList: any[] = adminIndexRaw ? JSON.parse(adminIndexRaw) : [];
-          adminIndexList = adminIndexList.filter((item: any) => item.slug !== slug && item.id !== snippetId);
-          adminIndexList.unshift({
-            id: snippetId,
-            slug,
-            title: snippetData.title,
-            description: snippetData.description,
-            isPublic: snippetData.isPublic,
-            hasPasscode: snippetData.hasPasscode,
-            expiresAt: snippetData.expiresAt,
-            createdAt: now,
-            updatedAt: now,
-            views: 0,
-            forksCount: 0,
-            tags: snippetData.tags,
-          });
-          if (adminIndexList.length > 500) adminIndexList = adminIndexList.slice(0, 500);
-          await kv.put("all_snippets_admin_index", JSON.stringify(adminIndexList));
-        } catch (e) {
-          console.error("KV admin index error:", e);
-        }
-
-        // 维护公共片段索引列表 (用于广场探索 public_snippets_index)
-        if (snippetData.isPublic && !snippetData.passcode) {
-          try {
-            const indexRaw = await kv.get("public_snippets_index");
-            let indexList: any[] = indexRaw ? JSON.parse(indexRaw) : [];
-            indexList = indexList.filter((item: any) => item.slug !== slug);
-            indexList.unshift({
-              id: snippetId,
-              slug,
-              title: snippetData.title,
-              description: snippetData.description,
-              createdAt: now,
-              views: 0,
-              tags: snippetData.tags,
-            });
-            if (indexList.length > 100) indexList = indexList.slice(0, 100);
-            await kv.put("public_snippets_index", JSON.stringify(indexList));
-          } catch (e) {
-            console.error("KV index error:", e);
-          }
-        }
       }
 
       const shareUrl = `/s/${slug}`;
@@ -354,26 +362,20 @@ export const onRequest = async (context: any) => {
       if (kv) {
         const raw = await kv.get(`snippet:${idOrSlug}`);
         if (raw) {
-          const item = JSON.parse(raw);
-          if (item.passcode && item.passcode.trim() && item.passcode !== inputPasscode) {
-            return json({ success: false, error: "密码验证失败，无法删除该保护片段" }, 403);
+          try {
+            const item = JSON.parse(raw);
+            if (item.passcode && item.passcode.trim() && item.passcode !== inputPasscode) {
+              return json({ success: false, error: "密码验证失败，无法删除该保护片段" }, 403);
+            }
+            await kv.delete(`snippet:${item.slug}`);
+          } catch {
+            await kv.delete(`snippet:${idOrSlug}`);
           }
-          await kv.delete(`snippet:${item.slug}`);
-          await kv.delete(`snippet_id:${item.id}`);
+        } else {
+          await kv.delete(`snippet:${idOrSlug}`);
         }
-        // 更新索引
-        const idxRaw = await kv.get("all_snippets_admin_index");
-        if (idxRaw) {
-          let list = JSON.parse(idxRaw);
-          list = list.filter((s: any) => s.id !== idOrSlug && s.slug !== idOrSlug);
-          await kv.put("all_snippets_admin_index", JSON.stringify(list));
-        }
-        const pubIdxRaw = await kv.get("public_snippets_index");
-        if (pubIdxRaw) {
-          let list = JSON.parse(pubIdxRaw);
-          list = list.filter((s: any) => s.id !== idOrSlug && s.slug !== idOrSlug);
-          await kv.put("public_snippets_index", JSON.stringify(list));
-        }
+        // 清理历史冗余别名键（若有）
+        await kv.delete(`snippet_id:${idOrSlug}`);
       }
 
       return json({ success: true, message: "片段已成功删除" });
@@ -491,10 +493,43 @@ export const onRequest = async (context: any) => {
         return json({ success: true, count: list.length, data: list });
       }
 
-      // 如果有 KV
+      // 如果仅有 KV (通过原生前缀列表扫描，不维护冗余全库大数组)
       if (kv) {
-        const indexRaw = await kv.get("public_snippets_index");
-        let list = indexRaw ? JSON.parse(indexRaw) : [];
+        let list: any[] = [];
+        try {
+          const listed = await kv.list({ prefix: "snippet:" });
+          if (listed && listed.keys && listed.keys.length > 0) {
+            const keysToFetch = listed.keys.slice(0, 50);
+            const items = await Promise.all(
+              keysToFetch.map(async (k: any) => {
+                const raw = await kv.get(k.name);
+                if (!raw) return null;
+                try {
+                  const parsed = JSON.parse(raw);
+                  if (parsed.isPublic !== false && !parsed.passcode) {
+                    return {
+                      id: parsed.id,
+                      slug: parsed.slug,
+                      title: parsed.title,
+                      description: parsed.description,
+                      createdAt: parsed.createdAt,
+                      views: parsed.views || 0,
+                      tags: parsed.tags || [],
+                    };
+                  }
+                  return null;
+                } catch {
+                  return null;
+                }
+              })
+            );
+            list = items.filter(Boolean);
+          }
+        } catch {
+          const indexRaw = await kv.get("public_snippets_index");
+          list = indexRaw ? JSON.parse(indexRaw) : [];
+        }
+
         if (q) {
           list = list.filter((s: any) =>
             (s.title || "").toLowerCase().includes(q) ||
@@ -576,20 +611,19 @@ export const onRequest = async (context: any) => {
       }
 
       if (kv) {
-        let list: any[] = [];
-        const adminIdxRaw = await kv.get("all_snippets_admin_index");
-        if (adminIdxRaw) {
-          list = JSON.parse(adminIdxRaw);
-        } else {
-          const indexRaw = await kv.get("public_snippets_index");
-          list = indexRaw ? JSON.parse(indexRaw) : [];
-        }
+        let count = 0;
+        let totalViews = 0;
+        try {
+          const listed = await kv.list({ prefix: "snippet:" });
+          count = listed?.keys?.length || 0;
+        } catch {}
+
         return json({
           success: true,
           stats: {
-            totalSnippets: list.length,
-            totalViews: list.reduce((acc: number, cur: any) => acc + (cur.views || 0), 0),
-            storageUsedBytes: adminIdxRaw ? adminIdxRaw.length : 0,
+            totalSnippets: count,
+            totalViews,
+            storageUsedBytes: 0,
             activeTokens: 1,
             databaseType: "Cloudflare KV",
           },
@@ -624,13 +658,41 @@ export const onRequest = async (context: any) => {
       }
 
       if (kv) {
-        const adminIdxRaw = await kv.get("all_snippets_admin_index");
-        if (adminIdxRaw) {
-          const list = JSON.parse(adminIdxRaw);
-          return json({ success: true, count: list.length, data: list });
-        }
-        const indexRaw = await kv.get("public_snippets_index");
-        const list = indexRaw ? JSON.parse(indexRaw) : [];
+        let list: any[] = [];
+        try {
+          const listed = await kv.list({ prefix: "snippet:" });
+          if (listed && listed.keys && listed.keys.length > 0) {
+            const keysToFetch = listed.keys.slice(0, 100);
+            const items = await Promise.all(
+              keysToFetch.map(async (k: any) => {
+                const raw = await kv.get(k.name);
+                if (!raw) return null;
+                try {
+                  const s = JSON.parse(raw);
+                  return {
+                    id: s.id,
+                    slug: s.slug,
+                    title: s.title,
+                    description: s.description,
+                    isPublic: s.isPublic !== false,
+                    hasPasscode: Boolean(s.passcode && s.passcode.trim()),
+                    passcode: s.passcode || "",
+                    expiresAt: s.expiresAt || null,
+                    createdAt: s.createdAt,
+                    updatedAt: s.updatedAt,
+                    views: s.views || 0,
+                    forksCount: s.forksCount || 0,
+                    tags: s.tags || [],
+                  };
+                } catch {
+                  return null;
+                }
+              })
+            );
+            list = items.filter(Boolean);
+            list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          }
+        } catch {}
         return json({ success: true, count: list.length, data: list });
       }
 
